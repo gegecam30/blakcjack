@@ -1,0 +1,802 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>21 Mesa — Blackjack 1v1</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700;9..144,900&family=Inter:wght@400;500;600;700&family=DM+Mono:wght@500&display=swap');
+
+  :root{
+    --felt-dark:#0a2f22;
+    --felt:#0e4030;
+    --felt-light:#155840;
+    --gold:#c9a227;
+    --gold-bright:#e8c34a;
+    --cream:#f4efe2;
+    --red:#b23a3a;
+    --ink:#0d1a14;
+    --line: rgba(244,239,226,0.14);
+  }
+
+  *{box-sizing:border-box; margin:0; padding:0;}
+
+  body{
+    min-height:100vh;
+    background:
+      radial-gradient(circle at 50% 0%, var(--felt-light) 0%, var(--felt) 45%, var(--felt-dark) 100%);
+    color:var(--cream);
+    font-family:'Inter', sans-serif;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:24px;
+    overflow-x:hidden;
+  }
+
+  /* subtle felt texture */
+  body::before{
+    content:"";
+    position:fixed; inset:0;
+    background-image:
+      radial-gradient(circle, rgba(255,255,255,0.035) 1px, transparent 1px);
+    background-size: 14px 14px;
+    pointer-events:none;
+    mix-blend-mode:overlay;
+  }
+
+  .app{ width:100%; max-width:560px; position:relative; z-index:1; }
+
+  h1,h2,h3{ font-family:'Fraunces', serif; font-weight:700; letter-spacing:-0.01em; }
+
+  .eyebrow{
+    font-family:'DM Mono', monospace;
+    font-size:12px;
+    letter-spacing:0.18em;
+    text-transform:uppercase;
+    color:var(--gold-bright);
+    display:flex; align-items:center; gap:8px;
+    margin-bottom:10px;
+  }
+  .eyebrow::before{
+    content:"♠"; color:var(--gold-bright); font-size:14px;
+  }
+
+  .screen{ display:none; animation:fadeUp .5s ease; }
+  .screen.active{ display:block; }
+
+  @keyframes fadeUp{
+    from{ opacity:0; transform:translateY(10px); }
+    to{ opacity:1; transform:translateY(0); }
+  }
+
+  /* ---------- Landing ---------- */
+  .title-row{ display:flex; align-items:baseline; gap:14px; flex-wrap:wrap; margin-bottom:6px;}
+  .title-row h1{ font-size:52px; line-height:1; color:var(--cream); }
+  .title-row .suit{ font-size:30px; color:var(--gold-bright); }
+  .subtitle{ color:rgba(244,239,226,0.65); font-size:15px; margin-bottom:34px; max-width:420px; }
+
+  .card-panel{
+    background: linear-gradient(180deg, rgba(244,239,226,0.06), rgba(244,239,226,0.02));
+    border:1px solid var(--line);
+    border-radius:18px;
+    padding:28px;
+    backdrop-filter: blur(6px);
+  }
+
+  label{
+    display:block; font-family:'DM Mono', monospace; font-size:11px;
+    letter-spacing:0.1em; text-transform:uppercase; color:rgba(244,239,226,0.55);
+    margin-bottom:8px;
+  }
+
+  input[type="text"]{
+    width:100%;
+    background:rgba(10,20,15,0.4);
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:13px 14px;
+    color:var(--cream);
+    font-family:'Inter',sans-serif;
+    font-size:16px;
+    outline:none;
+    transition:border-color .2s, box-shadow .2s;
+  }
+  input[type="text"]:focus{ border-color:var(--gold); box-shadow:0 0 0 3px rgba(201,162,39,0.15); }
+  input[type="text"]::placeholder{ color:rgba(244,239,226,0.3); }
+
+  .field{ margin-bottom:18px; }
+
+  .btn{
+    appearance:none; border:none; cursor:pointer;
+    font-family:'Inter', sans-serif; font-weight:600; font-size:15px;
+    padding:13px 22px; border-radius:10px;
+    transition: transform .15s ease, box-shadow .15s ease, background .15s ease;
+    display:inline-flex; align-items:center; justify-content:center; gap:8px;
+  }
+  .btn:active{ transform:scale(0.97); }
+  .btn-gold{
+    background:linear-gradient(180deg, var(--gold-bright), var(--gold));
+    color:#241a02;
+    box-shadow:0 4px 14px rgba(201,162,39,0.35);
+    width:100%;
+  }
+  .btn-gold:hover{ box-shadow:0 6px 20px rgba(201,162,39,0.5); }
+  .btn-ghost{
+    background:transparent; color:var(--cream);
+    border:1px solid var(--line);
+    width:100%;
+  }
+  .btn-ghost:hover{ border-color:rgba(244,239,226,0.4); }
+  .btn-sm{ padding:9px 14px; font-size:13px; width:auto; }
+
+  .or-divider{
+    display:flex; align-items:center; gap:12px; margin:22px 0;
+    color:rgba(244,239,226,0.35); font-family:'DM Mono', monospace; font-size:11px; letter-spacing:0.1em;
+  }
+  .or-divider::before, .or-divider::after{ content:""; flex:1; height:1px; background:var(--line); }
+
+  .code-input{
+    text-transform:uppercase; letter-spacing:0.3em; text-align:center;
+    font-family:'DM Mono', monospace; font-size:22px;
+  }
+
+  .msg{ font-size:13px; color:var(--red); margin-top:10px; min-height:16px; }
+  .msg.ok{ color:#7fbf8f; }
+
+  /* ---------- Waiting ---------- */
+  .waiting-code{
+    font-family:'DM Mono', monospace;
+    font-size:52px; letter-spacing:0.18em; text-align:center;
+    color:var(--gold-bright);
+    padding:22px 0;
+  }
+  .pulse-dot{
+    width:8px; height:8px; border-radius:50%; background:#7fbf8f;
+    display:inline-block; margin-right:8px;
+    animation:pulse 1.4s infinite;
+  }
+  @keyframes pulse{ 0%,100%{opacity:1;} 50%{opacity:.25;} }
+  .center-text{ text-align:center; }
+
+  /* ---------- Table ---------- */
+  .table-wrap{
+    background: radial-gradient(ellipse at 50% 40%, var(--felt-light), var(--felt) 70%);
+    border:2px solid rgba(201,162,39,0.35);
+    border-radius:26px;
+    padding:22px;
+    position:relative;
+    box-shadow: inset 0 0 60px rgba(0,0,0,0.35), 0 20px 40px rgba(0,0,0,0.3);
+  }
+  .table-wrap::before{
+    content:"21";
+    position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+    font-family:'Fraunces', serif; font-size:110px; font-weight:900;
+    color:rgba(201,162,39,0.08);
+    pointer-events:none;
+  }
+
+  .scoreboard{
+    display:flex; justify-content:space-between; align-items:center;
+    margin-bottom:16px; font-family:'DM Mono', monospace; font-size:12px;
+    color:rgba(244,239,226,0.6);
+  }
+  .scoreboard .code-chip{
+    background:rgba(0,0,0,0.25); border:1px solid var(--line);
+    padding:4px 10px; border-radius:20px; letter-spacing:0.15em;
+  }
+
+  .seat{
+    position:relative;
+    background:rgba(0,0,0,0.18);
+    border:1px solid var(--line);
+    border-radius:16px;
+    padding:16px;
+    margin-bottom:14px;
+    transition: box-shadow .25s ease, border-color .25s ease;
+  }
+  .seat.active-turn{
+    border-color:var(--gold-bright);
+    box-shadow:0 0 0 1px var(--gold-bright), 0 0 22px rgba(201,162,39,0.35);
+  }
+  .seat.busted{ opacity:0.55; }
+  .seat.winner{ border-color:#7fbf8f; box-shadow:0 0 0 1px #7fbf8f, 0 0 22px rgba(127,191,143,0.35); }
+
+  .seat-head{ display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .seat-name{ font-weight:600; font-size:14px; display:flex; align-items:center; gap:6px; }
+  .seat-name .you-tag{
+    font-family:'DM Mono', monospace; font-size:10px; color:var(--gold-bright);
+    border:1px solid rgba(201,162,39,0.4); padding:1px 6px; border-radius:10px;
+  }
+  .seat-value{
+    font-family:'DM Mono', monospace; font-size:20px; color:var(--gold-bright); font-weight:600;
+  }
+  .status-tag{
+    font-family:'DM Mono', monospace; font-size:10px; letter-spacing:0.08em; text-transform:uppercase;
+    color:rgba(244,239,226,0.5);
+  }
+
+  .hand{ display:flex; gap:8px; min-height:78px; flex-wrap:wrap; }
+
+  .card{
+    width:50px; height:72px;
+    background:var(--cream);
+    border-radius:7px;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    font-family:'DM Mono', monospace; font-weight:700; font-size:17px;
+    color:var(--ink);
+    box-shadow:0 3px 8px rgba(0,0,0,0.35);
+    animation: dealCard .35s cubic-bezier(.2,.8,.3,1.2) backwards;
+    flex-shrink:0;
+  }
+  .card.red{ color:var(--red); }
+  .card .suit{ font-size:19px; margin-top:2px; }
+  @keyframes dealCard{
+    from{ opacity:0; transform: translateY(-16px) rotate(-6deg) scale(0.85); }
+    to{ opacity:1; transform: translateY(0) rotate(0) scale(1); }
+  }
+
+  .controls{ display:flex; gap:10px; margin-top:18px; }
+  .btn-hit{
+    flex:1; background:linear-gradient(180deg, var(--gold-bright), var(--gold)); color:#241a02;
+    box-shadow:0 4px 14px rgba(201,162,39,0.35);
+  }
+  .btn-stand{
+    flex:1; background:transparent; border:1px solid var(--line); color:var(--cream);
+  }
+  .btn-hit:disabled, .btn-stand:disabled{
+    opacity:0.35; cursor:not-allowed; box-shadow:none;
+  }
+
+  .turn-banner{
+    text-align:center; font-family:'DM Mono', monospace; font-size:12px;
+    letter-spacing:0.08em; text-transform:uppercase; color:rgba(244,239,226,0.55);
+    margin: 4px 0 16px 0;
+  }
+  .turn-banner b{ color:var(--gold-bright); }
+
+  /* result overlay */
+  .result-overlay{
+    display:none; position:fixed; inset:0; background:rgba(6,14,10,0.78);
+    align-items:center; justify-content:center; z-index:50; padding:24px;
+    animation:fadeUp .3s ease;
+  }
+  .result-overlay.active{ display:flex; }
+  .result-card{
+    background:linear-gradient(180deg, var(--felt-light), var(--felt-dark));
+    border:1px solid rgba(201,162,39,0.4);
+    border-radius:20px; padding:36px; text-align:center; max-width:360px; width:100%;
+    box-shadow:0 20px 60px rgba(0,0,0,0.5);
+  }
+  .result-title{ font-size:32px; margin-bottom:6px; }
+  .result-sub{ color:rgba(244,239,226,0.6); font-size:14px; margin-bottom:26px; }
+  .result-scores{ display:flex; justify-content:center; gap:26px; margin-bottom:26px; font-family:'DM Mono', monospace; }
+  .result-scores div span{ display:block; font-size:26px; color:var(--gold-bright); font-weight:700; }
+  .result-scores div small{ font-size:10px; letter-spacing:0.1em; text-transform:uppercase; color:rgba(244,239,226,0.5); }
+
+  footer.hint{
+    text-align:center; margin-top:18px; font-size:12px; color:rgba(244,239,226,0.35);
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    *{ animation:none !important; transition:none !important; }
+  }
+
+  @media (max-width:480px){
+    .title-row h1{ font-size:38px; }
+    .card{ width:42px; height:60px; font-size:14px; }
+    .waiting-code{ font-size:38px; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- SCREEN 1: name -->
+  <section id="screen-name" class="screen active">
+    <div class="eyebrow">Mesa privada · 1 vs 1</div>
+    <div class="title-row"><h1>21 Mesa</h1><span class="suit">♥</span></div>
+    <p class="subtitle">Blackjack sin dealer. Solo tú y tu amigo, cara a cara: quien se acerque más a 21 sin pasarse, gana la mano.</p>
+
+    <div class="card-panel">
+      <div class="field">
+        <label for="name-input">Tu nombre</label>
+        <input type="text" id="name-input" placeholder="Ej. Renzo" maxlength="16">
+      </div>
+      <button class="btn btn-gold" id="continue-btn">Continuar →</button>
+      <div class="msg" id="name-msg"></div>
+    </div>
+  </section>
+
+  <!-- SCREEN 2: create/join lobby -->
+  <section id="screen-lobby" class="screen">
+    <div class="eyebrow">Sala</div>
+    <h2 style="font-size:30px; margin-bottom:6px;">Crea o únete a una mesa</h2>
+    <p class="subtitle">Crea una mesa nueva y comparte el código, o entra con el código de tu amigo.</p>
+
+    <div class="card-panel">
+      <button class="btn btn-gold" id="create-lobby-btn">🂡 Crear mesa nueva</button>
+
+      <div class="or-divider">O ÚNETE CON UN CÓDIGO</div>
+
+      <div class="field">
+        <label for="code-input">Código de la mesa</label>
+        <input type="text" id="code-input" class="code-input" placeholder="XXXX" maxlength="4">
+      </div>
+      <button class="btn btn-ghost" id="join-lobby-btn">Unirme a la mesa</button>
+      <div class="msg" id="lobby-msg"></div>
+    </div>
+  </section>
+
+  <!-- SCREEN 3: waiting -->
+  <section id="screen-waiting" class="screen">
+    <div class="eyebrow">Esperando</div>
+    <h2 style="font-size:28px;">Comparte este código con tu amigo</h2>
+    <div class="card-panel">
+      <div class="waiting-code" id="waiting-code">----</div>
+      <p class="center-text" style="color:rgba(244,239,226,0.55); font-size:14px;">
+        <span class="pulse-dot"></span>Esperando a que se una...
+      </p>
+      <button class="btn btn-ghost" id="cancel-wait-btn" style="margin-top:22px;">Cancelar</button>
+    </div>
+  </section>
+
+  <!-- SCREEN 4: table -->
+  <section id="screen-table" class="screen">
+    <div class="table-wrap">
+      <div class="scoreboard">
+        <span id="score-line">0 — 0</span>
+        <span class="code-chip" id="table-code">----</span>
+      </div>
+
+      <div class="seat" id="seat-opp">
+        <div class="seat-head">
+          <div class="seat-name"><span id="opp-name">Rival</span></div>
+          <div class="seat-value" id="opp-value">0</div>
+        </div>
+        <div class="hand" id="opp-hand"></div>
+        <div class="status-tag" id="opp-status"></div>
+      </div>
+
+      <div class="turn-banner" id="turn-banner">—</div>
+
+      <div class="seat" id="seat-me">
+        <div class="seat-head">
+          <div class="seat-name"><span id="me-name">Tú</span><span class="you-tag">TÚ</span></div>
+          <div class="seat-value" id="me-value">0</div>
+        </div>
+        <div class="hand" id="me-hand"></div>
+        <div class="status-tag" id="me-status"></div>
+        <div class="controls">
+          <button class="btn btn-hit" id="hit-btn">Pedir carta</button>
+          <button class="btn btn-stand" id="stand-btn">Plantarse</button>
+        </div>
+      </div>
+    </div>
+    <footer class="hint">Ases valen 11 u 1 automáticamente · el que más se acerca a 21 sin pasarse gana la mano</footer>
+  </section>
+
+</div>
+
+<!-- result overlay -->
+<div class="result-overlay" id="result-overlay">
+  <div class="result-card">
+    <div class="result-title" id="result-title">—</div>
+    <div class="result-sub" id="result-sub">—</div>
+    <div class="result-scores">
+      <div><span id="res-me-score">0</span><small id="res-me-name">Tú</small></div>
+      <div><span id="res-opp-score">0</span><small id="res-opp-name">Rival</small></div>
+    </div>
+    <button class="btn btn-gold" id="rematch-btn">Revancha 🂱</button>
+    <button class="btn btn-ghost" id="leave-btn" style="margin-top:10px;">Salir de la mesa</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ---------- state ----------
+  let storageReady = false;
+  let storageError = '';
+
+  async function ensureStorage(){
+    // window.storage can take a moment to be injected right after the
+    // artifact mounts, so retry a few times before giving up.
+    for(let i=0;i<10;i++){
+      if(window.storage && typeof window.storage.set === 'function'){
+        storageReady = true;
+        return true;
+      }
+      await new Promise(r => setTimeout(r, 300));
+    }
+    storageError = 'window.storage no está disponible en este entorno.';
+    return false;
+  }
+  ensureStorage();
+
+  function S_get(key, shared){ return window.storage.get(key, shared); }
+  function S_set(key, value, shared){ return window.storage.set(key, value, shared); }
+
+  const RANKS = ['2','3','4','5','6','7','8','9','10','J','Q','K','A'];
+  const SUITS = [{s:'♠',red:false},{s:'♣',red:false},{s:'♥',red:true},{s:'♦',red:true}];
+
+  let me = { id: null, name: '' };
+  let lobbyCode = null;
+  let pollTimer = null;
+  let lastKnownUpdatedAt = 0;
+  let resultShownFor = null;
+
+  function uid(){ return 'p_' + Math.random().toString(36).slice(2,10); }
+  function genCode(){
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let c = '';
+    for(let i=0;i<4;i++) c += chars[Math.floor(Math.random()*chars.length)];
+    return c;
+  }
+
+  function showScreen(id){
+    document.querySelectorAll('.screen').forEach(el => el.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+  }
+
+  // ---------- deck / values ----------
+  function freshDeck(){
+    const deck = [];
+    for(const r of RANKS) for(const su of SUITS) deck.push({ r, s: su.s, red: su.red });
+    for(let i=deck.length-1;i>0;i--){
+      const j = Math.floor(Math.random()*(i+1));
+      [deck[i],deck[j]] = [deck[j],deck[i]];
+    }
+    return deck;
+  }
+
+  function handValue(cards){
+    let total = 0, aces = 0;
+    for(const c of cards){
+      if(c.r === 'A'){ total += 11; aces++; }
+      else if(['J','Q','K'].includes(c.r)) total += 10;
+      else total += parseInt(c.r,10);
+    }
+    while(total > 21 && aces > 0){ total -= 10; aces--; }
+    return total;
+  }
+
+  // ---------- storage helpers ----------
+  async function readLobby(code){
+    try{
+      const res = await S_get('bj_lobby_' + code, true);
+      return res ? JSON.parse(res.value) : null;
+    }catch(e){ return null; }
+  }
+  async function writeLobby(code, state){
+    state.updatedAt = Date.now();
+    try{
+      const res = await S_set('bj_lobby_' + code, JSON.stringify(state), true);
+      if(!res) { storageError = 'La escritura no devolvió confirmación.'; return false; }
+      return true;
+    }catch(e){
+      storageError = (e && e.message) ? e.message : String(e);
+      return false;
+    }
+  }
+
+  // ---------- screen 1: name ----------
+  document.getElementById('continue-btn').addEventListener('click', () => {
+    const val = document.getElementById('name-input').value.trim();
+    const msg = document.getElementById('name-msg');
+    if(!val){ msg.textContent = 'Escribe un nombre para continuar.'; return; }
+    me.name = val.slice(0,16);
+    me.id = uid();
+    msg.textContent = '';
+    showScreen('screen-lobby');
+  });
+  document.getElementById('name-input').addEventListener('keydown', e => {
+    if(e.key === 'Enter') document.getElementById('continue-btn').click();
+  });
+
+  // ---------- screen 2: create/join ----------
+  document.getElementById('create-lobby-btn').addEventListener('click', async () => {
+    const btn = document.getElementById('create-lobby-btn');
+    const msg = document.getElementById('lobby-msg');
+    btn.disabled = true;
+
+    if(!storageReady){
+      msg.textContent = 'Conectando...';
+      const ok = await ensureStorage();
+      if(!ok){
+        msg.textContent = 'No se pudo conectar al almacenamiento (' + storageError + '). Recarga la página e intenta de nuevo.';
+        btn.disabled = false;
+        return;
+      }
+    }
+
+    let code = genCode();
+    // extremely unlikely collision, but check once
+    const existing = await readLobby(code);
+    if(existing) code = genCode();
+
+    const state = {
+      code,
+      status: 'waiting', // waiting -> playing -> round_over
+      players: [{ id: me.id, name: me.name }],
+      wins: {},
+      deck: [],
+      hands: {},
+      standed: {},
+      busted: {},
+      turn: null,
+      starter: me.id,
+      winner: null,
+      resultSeq: 0,
+      updatedAt: Date.now()
+    };
+    state.wins[me.id] = 0;
+    const ok = await writeLobby(code, state);
+    btn.disabled = false;
+    if(!ok){
+      document.getElementById('lobby-msg').textContent = 'No se pudo crear la mesa (' + storageError + '). Intenta de nuevo.';
+      return;
+    }
+    document.getElementById('lobby-msg').textContent = '';
+    lobbyCode = code;
+    document.getElementById('waiting-code').textContent = code;
+    showScreen('screen-waiting');
+    startPolling();
+  });
+
+  document.getElementById('join-lobby-btn').addEventListener('click', async () => {
+    const codeInput = document.getElementById('code-input');
+    const msg = document.getElementById('lobby-msg');
+    const code = codeInput.value.trim().toUpperCase();
+    if(code.length !== 4){ msg.textContent = 'El código tiene 4 caracteres.'; return; }
+
+    if(!storageReady){
+      msg.textContent = 'Conectando...';
+      const ok = await ensureStorage();
+      if(!ok){
+        msg.textContent = 'No se pudo conectar al almacenamiento (' + storageError + '). Recarga la página.';
+        return;
+      }
+    }
+
+    const state = await readLobby(code);
+    if(!state){ msg.textContent = 'No existe una mesa con ese código.'; return; }
+    if(state.players.length >= 2 && !state.players.find(p => p.id === me.id)){
+      msg.textContent = 'Esa mesa ya está completa.'; return;
+    }
+    if(!state.players.find(p => p.id === me.id)){
+      state.players.push({ id: me.id, name: me.name });
+      state.wins[me.id] = 0;
+    }
+
+    if(state.players.length === 2 && state.status === 'waiting'){
+      dealNewRound(state, state.starter || state.players[0].id);
+      state.status = 'playing';
+    }
+
+    const ok = await writeLobby(code, state);
+    if(!ok){ msg.textContent = 'No se pudo unir a la mesa (' + storageError + ').'; return; }
+
+    lobbyCode = code;
+    msg.textContent = '';
+    showScreen('screen-table');
+    startPolling(true);
+  });
+
+  document.getElementById('code-input').addEventListener('keydown', e => {
+    if(e.key === 'Enter') document.getElementById('join-lobby-btn').click();
+  });
+
+  document.getElementById('cancel-wait-btn').addEventListener('click', () => {
+    stopPolling();
+    lobbyCode = null;
+    showScreen('screen-lobby');
+  });
+
+  // ---------- dealing / round logic ----------
+  function dealNewRound(state, starterId){
+    state.deck = freshDeck();
+    state.hands = {};
+    state.standed = {};
+    state.busted = {};
+    state.winner = null;
+    state.status = 'playing';
+    for(const p of state.players){
+      state.hands[p.id] = [state.deck.pop(), state.deck.pop()];
+      state.standed[p.id] = false;
+      state.busted[p.id] = false;
+    }
+    state.turn = starterId;
+    state.starter = starterId;
+  }
+
+  async function doHit(){
+    let state = await readLobby(lobbyCode);
+    if(!state || state.turn !== me.id || state.status !== 'playing') return;
+    const card = state.deck.pop();
+    state.hands[me.id].push(card);
+    const val = handValue(state.hands[me.id]);
+    if(val > 21){
+      state.busted[me.id] = true;
+      finishRound(state);
+    }
+    // else: turn stays with me, just re-render after write
+    await writeLobby(lobbyCode, state);
+    renderState(state);
+  }
+
+  async function doStand(){
+    let state = await readLobby(lobbyCode);
+    if(!state || state.turn !== me.id || state.status !== 'playing') return;
+    state.standed[me.id] = true;
+    const opp = state.players.find(p => p.id !== me.id);
+    if(opp && state.standed[opp.id]){
+      finishRound(state);
+    } else if(opp){
+      state.turn = opp.id;
+    }
+    await writeLobby(lobbyCode, state);
+    renderState(state);
+  }
+
+  function finishRound(state){
+    state.status = 'round_over';
+    const [p1, p2] = state.players;
+    const b1 = state.busted[p1.id], b2 = state.busted[p2.id];
+    const v1 = handValue(state.hands[p1.id]), v2 = handValue(state.hands[p2.id]);
+    let winner = null;
+    if(b1 && !b2) winner = p2.id;
+    else if(b2 && !b1) winner = p1.id;
+    else if(b1 && b2) winner = null; // double bust = push
+    else winner = v1 === v2 ? null : (v1 > v2 ? p1.id : p2.id);
+    state.winner = winner;
+    if(winner){ state.wins[winner] = (state.wins[winner] || 0) + 1; }
+    state.resultSeq = (state.resultSeq || 0) + 1;
+    state.turn = null;
+  }
+
+  document.getElementById('hit-btn').addEventListener('click', doHit);
+  document.getElementById('stand-btn').addEventListener('click', doStand);
+
+  document.getElementById('rematch-btn').addEventListener('click', async () => {
+    let state = await readLobby(lobbyCode);
+    if(!state) return;
+    const nextStarter = state.players.find(p => p.id !== state.starter)?.id || state.starter;
+    dealNewRound(state, nextStarter);
+    document.getElementById('result-overlay').classList.remove('active');
+    await writeLobby(lobbyCode, state);
+    renderState(state);
+  });
+
+  document.getElementById('leave-btn').addEventListener('click', () => {
+    stopPolling();
+    document.getElementById('result-overlay').classList.remove('active');
+    lobbyCode = null;
+    document.getElementById('code-input').value = '';
+    showScreen('screen-lobby');
+  });
+
+  // ---------- polling ----------
+  function startPolling(immediate){
+    stopPolling();
+    if(immediate) tick();
+    pollTimer = setInterval(tick, 1400);
+  }
+  function stopPolling(){
+    if(pollTimer) clearInterval(pollTimer);
+    pollTimer = null;
+  }
+
+  async function tick(){
+    if(!lobbyCode) return;
+    const state = await readLobby(lobbyCode);
+    if(!state) return;
+
+    if(document.getElementById('screen-waiting').classList.contains('active')){
+      if(state.players.length === 2){
+        // second player already dealt & set status playing when they joined
+        showScreen('screen-table');
+      }
+    }
+    renderState(state);
+  }
+
+  // ---------- render ----------
+  function cardEl(c){
+    const div = document.createElement('div');
+    div.className = 'card' + (c.red ? ' red' : '');
+    div.innerHTML = c.r + '<span class="suit">' + c.s + '</span>';
+    return div;
+  }
+
+  function renderState(state){
+    if(!state || !state.players.find(p => p.id === me.id)) return;
+    const opp = state.players.find(p => p.id !== me.id);
+
+    document.getElementById('table-code').textContent = state.code;
+    document.getElementById('me-name').textContent = me.name;
+    document.getElementById('opp-name').textContent = opp ? opp.name : 'esperando...';
+    document.getElementById('score-line').textContent =
+      (state.wins[me.id] || 0) + ' — ' + (opp ? (state.wins[opp.id] || 0) : 0);
+
+    const myHand = state.hands ? state.hands[me.id] || [] : [];
+    const oppHand = (opp && state.hands) ? state.hands[opp.id] || [] : [];
+
+    const meHandEl = document.getElementById('me-hand');
+    const oppHandEl = document.getElementById('opp-hand');
+    meHandEl.innerHTML = '';
+    oppHandEl.innerHTML = '';
+    myHand.forEach(c => meHandEl.appendChild(cardEl(c)));
+    oppHand.forEach(c => oppHandEl.appendChild(cardEl(c)));
+
+    document.getElementById('me-value').textContent = myHand.length ? handValue(myHand) : 0;
+    document.getElementById('opp-value').textContent = oppHand.length ? handValue(oppHand) : 0;
+
+    const meBusted = state.busted && state.busted[me.id];
+    const oppBusted = opp && state.busted && state.busted[opp.id];
+    const meStood = state.standed && state.standed[me.id];
+    const oppStood = opp && state.standed && state.standed[opp.id];
+
+    document.getElementById('me-status').textContent = meBusted ? 'Se pasó de 21' : (meStood ? 'Plantado' : '');
+    document.getElementById('opp-status').textContent = oppBusted ? 'Se pasó de 21' : (oppStood ? 'Plantado' : '');
+
+    const seatMe = document.getElementById('seat-me');
+    const seatOpp = document.getElementById('seat-opp');
+    seatMe.classList.toggle('busted', !!meBusted);
+    seatOpp.classList.toggle('busted', !!oppBusted);
+    seatMe.classList.toggle('active-turn', state.turn === me.id && state.status === 'playing');
+    seatOpp.classList.toggle('active-turn', opp && state.turn === opp.id && state.status === 'playing');
+    seatMe.classList.remove('winner');
+    seatOpp.classList.remove('winner');
+
+    const banner = document.getElementById('turn-banner');
+    if(state.status === 'waiting' || !opp){
+      banner.innerHTML = 'Esperando al segundo jugador...';
+    } else if(state.status === 'playing'){
+      banner.innerHTML = state.turn === me.id ? 'Es tu turno — pide carta o plántate' : '<b>' + opp.name + '</b> está jugando...';
+    } else if(state.status === 'round_over'){
+      banner.innerHTML = 'Mano terminada';
+    }
+
+    const canAct = state.status === 'playing' && state.turn === me.id;
+    document.getElementById('hit-btn').disabled = !canAct;
+    document.getElementById('stand-btn').disabled = !canAct;
+
+    if(state.status === 'round_over' && opp){
+      if(state.winner === me.id) seatMe.classList.add('winner');
+      else if(state.winner === opp.id) seatOpp.classList.add('winner');
+      maybeShowResult(state, opp);
+    } else {
+      resultShownFor = null;
+    }
+  }
+
+  function maybeShowResult(state, opp){
+    const seq = state.resultSeq || 0;
+    if(resultShownFor === seq) return;
+    resultShownFor = seq;
+
+    const title = document.getElementById('result-title');
+    const sub = document.getElementById('result-sub');
+    if(state.winner === me.id){
+      title.textContent = '¡Ganaste la mano! 🂡';
+      sub.textContent = 'Le ganaste a ' + opp.name + '.';
+    } else if(state.winner === opp.id){
+      title.textContent = 'Perdiste la mano';
+      sub.textContent = opp.name + ' se llevó esta ronda.';
+    } else {
+      title.textContent = 'Empate';
+      sub.textContent = 'Nadie se acercó más — se reparte de nuevo.';
+    }
+    document.getElementById('res-me-name').textContent = me.name.toUpperCase();
+    document.getElementById('res-opp-name').textContent = opp.name.toUpperCase();
+    document.getElementById('res-me-score').textContent = state.wins[me.id] || 0;
+    document.getElementById('res-opp-score').textContent = state.wins[opp.id] || 0;
+    document.getElementById('result-overlay').classList.add('active');
+  }
+
+})();
+</script>
+</body>
+</html>
